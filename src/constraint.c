@@ -447,11 +447,11 @@ void tryH(char h)
     height = h;
     board = realloc(board, sizeof(*board) * height);
     init_enforce();
-    int res = solve();
+    solve();
     for (int i = 0; i < height; i++) {
         board[i] = bs_get_min(domain_stack[stack_index][i]);
     }
-    printf("%d | BOARD %d: ", res, h);
+    printf("N=%d: ", h);
     for (int i = 0; i < height; i++) printf("%d, ", board[i]);
     putchar('\n');
     verify();
