@@ -15,7 +15,7 @@
 #define CHOSE 1
 #define DEFAULT 2
 
-#define debug(str, domains) do {if (1) {printf("%d" str, stack_index); for (int i = 0; i < height; i++) bs_print(domains[i]); putchar('\n');}} while (0)
+#define debug(str, domains) do {if (1) {printf("%d" str, stack_index); for (int i = 0; i < min(height, 4); i++) bs_print(domains[i]); putchar('\n');}} while (0)
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
 static uint64_t height;
@@ -67,8 +67,6 @@ void bs_free(bitset bs)
 
 void bs_or(bitset dest, bitset src)
 {
-    // TODO: expected behaviour if lengths unequal
-    // alternatively, assume equal bcs they are (in this application) for optimization?
     for (int i = 0; i < min(bs_num_chunks(dest), bs_num_chunks(src)); i++) {
         dest.buf[i] |= src.buf[i];
     }
@@ -76,8 +74,6 @@ void bs_or(bitset dest, bitset src)
 
 void bs_and(bitset dest, bitset src)
 {
-    // TODO: expected behaviour if lengths unequal
-    // alternatively, assume equal bcs they are (in this application) for optimization?
     for (int i = 0; i < min(bs_num_chunks(dest), bs_num_chunks(src)); i++) {
         dest.buf[i] &= src.buf[i];
     }
@@ -85,8 +81,6 @@ void bs_and(bitset dest, bitset src)
 
 void bs_set(bitset dest, bitset src)
 {
-    // TODO: expected behaviour if lengths unequal
-    // alternatively, assume equal bcs they are (in this application) for optimization?
     for (int i = 0; i < min(bs_num_chunks(dest), bs_num_chunks(src)); i++) {
         dest.buf[i] = src.buf[i];
     }
@@ -94,8 +88,6 @@ void bs_set(bitset dest, bitset src)
 
 int bs_eq(bitset dest, bitset src)
 {
-    // TODO: expected behaviour if lengths unequal
-    // alternatively, assume equal bcs they are (in this application) for optimization?
     for (int i = 0; i < min(bs_num_chunks(dest), bs_num_chunks(src)); i++) {
         if (dest.buf[i] != src.buf[i]) return 0;
     }
@@ -178,10 +170,26 @@ int bs_cardinality(bitset bs)
     return ans;
 }
 
-int bs_is_singleton(bitset bs)
+unsigned int bs_empty(bitset bs)
 {
     for (int i = 0; i < bs_num_chunks(bs); i++) {
-        if (!is_chunk_singleton(bs.buf[i])) return 0;
+        if (bs.buf[i] != 0) return 0;
+    }
+    return 1;
+}
+
+int bs_is_singleton(bitset bs)
+{
+    int found = 0;
+    for (int i = 0; i < bs_num_chunks(bs); i++) {
+        if (bs.buf[i] != 0) {
+            if (!is_chunk_singleton(bs.buf[i])) {
+                return 0;
+            } else {
+                if (found == 1) return 0;
+                else found = 1;
+            }
+        }
     }
     return 1;
 }
@@ -224,14 +232,6 @@ void bs_pop_min_singleton(bitset dest, bitset src)
     }
 }
 
-unsigned int bs_empty(bitset bs)
-{
-    for (int i = 0; i < bs_num_chunks(bs); i++) {
-        if (bs.buf[i] != 0) return 0;
-    }
-    return 1;
-}
-
 bitset bs_copy(bitset orig)
 {
     bitset ans = new_bs_empty(orig.len);
@@ -244,6 +244,8 @@ bitset bs_copy(bitset orig)
  * END BITSET LIB
 */
 
+#define DSTACK_H (height + 1)
+
 static bitset temp, temp2, mask;
 static bitset (**domain_stack);
 static int stack_index;
@@ -253,8 +255,8 @@ void init_enforce()
     temp = new_bs_empty(2*height);
     temp2 = new_bs_empty(2*height);
     mask = new_bs_empty(2*height);
-    domain_stack = malloc(sizeof(*domain_stack) * (height + 1));
-    for (int i = 0; i < height + 1; i++) {
+    domain_stack = malloc(sizeof(*domain_stack) * DSTACK_H);
+    for (int i = 0; i < DSTACK_H; i++) {
         domain_stack[i] = malloc(sizeof(**domain_stack) * height);
         for (int j = 0; j < height; j++) {
             domain_stack[i][j] = new_bs_universe(height);
@@ -268,7 +270,7 @@ void cleanup_enforce()
     free(temp.buf);
     free(temp2.buf);
     free(mask.buf);
-    for (int i = 0; i < height + 1; i++) {
+    for (int i = 0; i < DSTACK_H; i++) {
         for (int j = 0; j < height; j++) {
             free(domain_stack[i][j].buf);
         }    
@@ -341,24 +343,6 @@ int enforce_nodiagnol(bitset *domains)
         }
         bs_shr(temp2, 1);
     }
-    /*for (uint64_t i = 0; i < height; i++) {
-        if (bs_is_singleton(domains[i])) {
-            for (uint64_t j = 0; j < height; j++) {
-                unsigned int dist = abs(i - j);
-                bs_set(temp, domains[j]);
-                bs_set(mask, domains[i]);
-                bs_shl(mask, dist*2);
-                bs_or(mask, domains[i]);
-                bs_shr(mask, dist);
-                bs_not(mask);
-                if (j != i) {
-                    bs_and(domains[j], mask);
-                }
-                if (bs_empty(domains[j])) return FAIL;
-                if (!bs_is_singleton(temp) && bs_is_singleton(domains[j])) chose |= 1;
-            }
-        }
-    }*/
     if (chose) return CHOSE;
     return DEFAULT;
 }
@@ -367,6 +351,7 @@ int choose_next_domain(bitset *domains)
 {
     int minI = -1, minV = -1;
     for (int i = 0; i < height; i++) {
+        //debug("card: ", domains);
         if (!bs_is_singleton(domains[i])) {
             if (minI == -1 || bs_cardinality(domains[i]) < minV) {
                 minI = i;
@@ -447,7 +432,11 @@ void tryH(char h)
     height = h;
     board = realloc(board, sizeof(*board) * height);
     init_enforce();
-    solve();
+    int res = solve();
+    if (!res) {
+        printf("N=%d: No solution.\n", h);
+        return;
+    }
     for (int i = 0; i < height; i++) {
         board[i] = bs_get_min(domain_stack[stack_index][i]);
     }
@@ -455,7 +444,16 @@ void tryH(char h)
     for (int i = 0; i < height; i++) printf("%d, ", board[i]);
     putchar('\n');
     verify();
-    cleanup_enforce();
+    /*debug("after: ", domain_stack[stack_index]);
+    debug("after: ", domain_stack[stack_index]);
+    for (int i = 0; i < height; i++) {
+        printf("%d: ", i);
+        bs_print(domain_stack[stack_index][i]);
+    }
+    bs_print(domain_stack[stack_index][54]);
+    printf("%d\n", bs_cardinality(domain_stack[stack_index][54]));
+    printf("%d\n", bs_is_singleton(domain_stack[stack_index][54]));
+    cleanup_enforce();*/
 }
 
 int main(int argc, char *argv[])
