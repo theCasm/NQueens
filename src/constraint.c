@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "bitset.h"
+#include "bitset.c" // I know this is sketchy as hell, but I lose 30% performance if I use multiple files since the optimizer gets freaked out :(
 
 #define FAIL 0
 #define CHOSE 1

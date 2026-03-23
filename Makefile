@@ -1,20 +1,11 @@
 SRCS := src/bitset.c src/constraint.c
-OBJS := $(foreach w, $(SRCS), $(w:src/%.c=bin/%.o))
-DEV_OBJS := $(foreach w, $(SRCS), $(w:src/%.c=bin/%.dev.o))
 
 CFLAGS = -Wall -Wpedantic
 
-prod: $(OBJS)
-	gcc $(CFLAGS) -O3 $^ -o bin/constraint
-
-dev: $(DEV_OBJS)
-	gcc $(CFLAGS) -ggdb -Og $^ -o bin/constraint
-
-
-bin/%.o: src/%.c
+prod: $(SRCS)
 	mkdir -p bin
-	gcc $(CFLAGS) -O3 -c $< -o $@
+	gcc $(CFLAGS) -O3 src/constraint.c -o bin/constraint
 
-bin/%.dev.o: src/%.c
+dev: $(SRCS)
 	mkdir -p bin
-	gcc $(CFLAGS) -ggdb -Og -c $< -o $@
+	gcc $(CFLAGS) -ggdb -Og src/constraint.c -o bin/constraint
